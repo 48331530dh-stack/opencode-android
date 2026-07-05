@@ -70,16 +70,28 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
 
-      - name: Show check log
-        if: always()
-        run: |
-          echo "=== paste.rs URLs ==="
-          echo "BUILD LOG: $(cat gradle-build.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/)"
-          echo "CHECK LOG: $(cat gradle-check.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/)"
-          echo "=== Build log content ==="
-          cat gradle-build.log 2>/dev/null || echo "No build log"
-          echo "=== Check log content ==="
-          cat gradle-check.log 2>/dev/null || echo "No check log"
+      - name: Publish error to GitHub Check Run
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const buildLog = fs.readFileSync('gradle-build.log', 'utf8').slice(0, 64000);
+            const checkLog = fs.readFileSync('gradle-check.log', 'utf8').slice(0, 64000);
+            const summary = `## Build Log\n\`\`\`\n${buildLog}\n\`\`\`\n## Check Log\n\`\`\`\n${checkLog}\n\`\`\``;
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'build-error-detail',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: 'failure',
+              output: {
+                title: 'Build Error',
+                summary: summary.slice(0, 65535),
+                text: summary.slice(0, 65535)
+              }
+            });
 
       - name: Sign APK
         env:
