@@ -40,8 +40,23 @@ jobs:
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           echo "$CMDLINE_TOOLS" >> $GITHUB_PATH
 
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       - name: Build release APK
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: |
+          set +e
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
+          exit_code=${PIPESTATUS[0]}
+          echo "Gradle exit code: $exit_code"
+          exit $exit_code
+
+      - name: Upload build log (even on failure)
+        if: failure() || success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: gradle-build.log
 
       - name: Sign APK
         env:
