@@ -35,15 +35,21 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: Sign APK
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
-          apksigner sign \
-            --ks keystore.jks \
-            --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
-            --ks-key-alias ${{ secrets.ANDROID_KEY_ALIAS }} \
-            --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} \
-            app/build/outputs/apk/release/app-release-unsigned.apk
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
+            apksigner sign \
+              --ks keystore.jks \
+              --ks-pass pass:"$KEYSTORE_PASS" \
+              --ks-key-alias "$KEY_ALIAS" \
+              --key-pass pass:"$KEY_PASS" \
+              app/build/outputs/apk/release/app-release-unsigned.apk
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
