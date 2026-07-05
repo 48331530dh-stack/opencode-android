@@ -70,14 +70,15 @@ jobs:
           set -o pipefail
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
 
-      - name: Publish build log
-        if: failure()
+      - name: Publish build log to step summary
+        if: always()
         run: |
-          echo "=== Build output ==="
-          cat gradle-build.log 2>/dev/null || echo "No log file"
-          echo ""
-          echo "=== ix.io pastebin ==="
-          cat gradle-build.log 2>/dev/null | curl -s -F 'f:1=<-' https://ix.io
+          LOG=$(cat gradle-build.log 2>/dev/null || echo "No log file")
+          echo "## Build log" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "$LOG" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Log URL: $(echo "$LOG" | curl -s -F 'f:1=<-' https://ix.io)" >> $GITHUB_STEP_SUMMARY
 
       - name: Sign APK
         env:
