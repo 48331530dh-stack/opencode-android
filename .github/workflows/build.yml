@@ -27,41 +27,53 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Install Android SDK
+      - name: Find and setup Android SDK
         run: |
-          export ANDROID_SDK_ROOT=$HOME/android-sdk
-          export CMDLINE_TOOLS=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-          mkdir -p $CMDLINE_TOOLS
-          echo "Downloading cmdline-tools..."
-          curl -sL -o cmdline-tools.zip \
-            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          echo "Extracting..."
-          unzip -q cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
-          mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
-          rm -f cmdline-tools.zip
-          echo "Accepting licenses..."
-          yes | $CMDLINE_TOOLS/sdkmanager --licenses || echo "License accept maybe failed"
-          echo "Installing SDK components..."
-          $CMDLINE_TOOLS/sdkmanager --verbose "platforms;android-35" "build-tools;35.0.0" \
-            || echo "SDK install may have failed"
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "SDK installed at $ANDROID_SDK_ROOT"
-          ls -la $ANDROID_SDK_ROOT/platforms/ || echo "No platforms dir"
-          ls -la $ANDROID_SDK_ROOT/build-tools/ || echo "No build-tools dir"
+          SDK=""
+          for d in /usr/local/lib/android/sdk $ANDROID_HOME $ANDROID_SDK_ROOT $HOME/android-sdk; do
+            if [ -d "$d" ] && [ -d "$d/platforms" ]; then SDK="$d"; break; fi
+          done
+          if [ -z "$SDK" ]; then
+            echo "No pre-installed SDK, installing..."
+            SDK=$HOME/android-sdk
+            mkdir -p $SDK
+            curl -sL -o cmdline-tools.zip \
+              https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q cmdline-tools.zip -d $SDK/cmdline-tools
+            mv $SDK/cmdline-tools/cmdline-tools $SDK/cmdline-tools/latest
+            rm -f cmdline-tools.zip
+          fi
+          echo "SDK=$SDK"
+          echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$SDK" >> $GITHUB_ENV
+          ls -la $SDK/platforms/ 2>/dev/null || echo "No platforms yet"
+          ls -la $SDK/build-tools/ 2>/dev/null || echo "No build-tools yet"
+
+      - name: Install required SDK components
+        run: |
+          SDK="$ANDROID_HOME"
+          CMDLINE="$SDK/cmdline-tools/latest/bin"
+          if [ ! -f "$CMDLINE/sdkmanager" ]; then
+            echo "sdkmanager not found at $CMDLINE"
+            ls -la $SDK/cmdline-tools/ 2>/dev/null || echo "No cmdline-tools"
+            exit 1
+          fi
+          yes | $CMDLINE/sdkmanager --licenses || true
+          $CMDLINE/sdkmanager "platforms;android-35" "build-tools;35.0.0" || true
+          echo "Installed platforms:"
+          ls -la $SDK/platforms/ 2>/dev/null
 
       - name: Build release APK
         shell: bash
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls -la $ANDROID_HOME/ 2>/dev/null || echo "ANDROID_HOME not found"
           set -o pipefail
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
 
       - name: Show build log on failure
         if: failure()
-        run: tail -50 gradle-build.log
+        run: |
+          echo "=== Build log ==="
+          tail -100 gradle-build.log 2>/dev/null || echo "No log file"
 
       - name: Sign APK
         env:
