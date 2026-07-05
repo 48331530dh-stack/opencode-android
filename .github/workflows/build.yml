@@ -36,57 +36,28 @@ jobs:
           unzip -q $HOME/cmdline-tools.zip -d $SDK/cmdline-tools
           mv $SDK/cmdline-tools/cmdline-tools $SDK/cmdline-tools/latest
           rm -f $HOME/cmdline-tools.zip
-          yes | $SDK/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-          $SDK/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" > /dev/null 2>&1 || true
+          yes | $SDK/cmdline-tools/latest/bin/sdkmanager --licenses
+          $SDK/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
           echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$SDK" >> $GITHUB_ENV
+          echo "SDK installed. Platforms:"
+          ls -la $SDK/platforms/
+          echo "Build tools:"
+          ls -la $SDK/build-tools/
 
-      - name: Check and build
-        shell: bash
+      - name: Build
         run: |
-          echo "=== ENV ==="
           echo "JAVA_HOME=$JAVA_HOME"
-          echo "ANDROID_HOME=$ANDROID_HOME"
           java -version 2>&1
-          echo "=== Gradle version ==="
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls -la $ANDROID_HOME/platforms/
+          ls -la $ANDROID_HOME/build-tools/
           chmod +x gradlew
-          ./gradlew --version --no-daemon 2>&1 | tail -10
-          echo "=== SDK platforms ==="
-          ls -la $ANDROID_HOME/platforms/ 2>/dev/null || echo "No platforms dir"
-          echo "=== Build ==="
-          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
-
-      - name: Upload log to paste.rs
-        if: failure()
-        run: |
-          echo "PASTE URL: $(cat gradle-build.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/)"
-
-      - name: Sign APK
-        env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
-            apksigner sign \
-              --ks keystore.jks \
-              --ks-pass pass:"$KEYSTORE_PASS" \
-              --ks-key-alias "$KEY_ALIAS" \
-              --key-pass pass:"$KEY_PASS" \
-              app/build/outputs/apk/release/app-release-unsigned.apk
-          fi
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: opencode-android-apk
           path: app/build/outputs/apk/release/app-release-unsigned.apk
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: app/build/outputs/apk/release/app-release-unsigned.apk
-          generate_release_notes: true
