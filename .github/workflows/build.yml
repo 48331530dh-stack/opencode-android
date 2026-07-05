@@ -73,13 +73,13 @@ jobs:
       - name: Show check log
         if: always()
         run: |
-          echo "=== gradle-check.log ==="
-          cat gradle-check.log 2>/dev/null || echo "No check log"
-          echo "=== gradle-build.log ==="
+          echo "=== paste.rs URLs ==="
+          echo "BUILD LOG: $(cat gradle-build.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/)"
+          echo "CHECK LOG: $(cat gradle-check.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/)"
+          echo "=== Build log content ==="
           cat gradle-build.log 2>/dev/null || echo "No build log"
-          echo "=== Upload to paste.rs ==="
-          cat gradle-build.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/ 2>/dev/null && echo "" || echo "paste.rs failed"
-          cat gradle-check.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/ 2>/dev/null && echo "" || echo "paste.rs failed"
+          echo "=== Check log content ==="
+          cat gradle-check.log 2>/dev/null || echo "No check log"
 
       - name: Sign APK
         env:
