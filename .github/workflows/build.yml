@@ -60,15 +60,29 @@ jobs:
           set -o pipefail
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
 
-      - name: Publish build log to step summary
-        if: always()
+      - name: Upload log to pastebin
+        if: failure()
         run: |
-          LOG=$(cat gradle-build.log 2>/dev/null || echo "No log file")
-          echo "## Build log" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "$LOG" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "Log URL: $(echo "$LOG" | curl -s -F 'f:1=<-' https://ix.io)" >> $GITHUB_STEP_SUMMARY
+          LOG_CONTENT=$(cat gradle-build.log 2>/dev/null)
+          PASTE_URL=$(echo "$LOG_CONTENT" | curl -s -F 'f:1=<-' https://ix.io)
+          echo "IXIO_URL=$PASTE_URL" >> $GITHUB_ENV
+          echo ""
+          echo "IX.IO URL: $PASTE_URL"
+          echo ""
+          echo "=== Build log START ==="
+          echo "$LOG_CONTENT"
+          echo "=== Build log END ==="
+
+      - name: Post log URL as commit status
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
+            -f state=failure \
+            -f target_url="$IXIO_URL" \
+            -f description="Build failed. Click for log." \
+            -f context="build-log"
 
       - name: Sign APK
         env:
