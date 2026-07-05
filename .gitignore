@@ -10,3 +10,7 @@
 local.properties
 app/build/
 app/src/main/assets/opencode-aarch64
+opencode-release-key.jks
+keystore-base64.txt
+opencode-release-key.jks
+keystore-base64.txt
