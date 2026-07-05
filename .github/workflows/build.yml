@@ -60,29 +60,25 @@ jobs:
           set -o pipefail
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
 
-      - name: Upload log to pastebin
-        if: failure()
-        run: |
-          LOG_CONTENT=$(cat gradle-build.log 2>/dev/null)
-          PASTE_URL=$(echo "$LOG_CONTENT" | curl -s -F 'f:1=<-' https://ix.io)
-          echo "IXIO_URL=$PASTE_URL" >> $GITHUB_ENV
-          echo ""
-          echo "IX.IO URL: $PASTE_URL"
-          echo ""
-          echo "=== Build log START ==="
-          echo "$LOG_CONTENT"
-          echo "=== Build log END ==="
-
-      - name: Post log URL as commit status
+      - name: Upload log and post as commit status
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
-            -f state=failure \
-            -f target_url="$IXIO_URL" \
-            -f description="Build failed. Click for log." \
-            -f context="build-log"
+          LOG=$(cat gradle-build.log 2>/dev/null)
+          echo "=== Build log START ==="
+          echo "$LOG"
+          echo "=== Build log END ==="
+          GIST_URL=$(echo "$LOG" | gh gist create --filename "build-error.txt" \
+            --desc "opencode-android build error #${{ github.run_number }}" 2>/dev/null)
+          echo "GIST_URL=$GIST_URL"
+          if [ -n "$GIST_URL" ]; then
+            gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
+              -f state=failure \
+              -f target_url="$GIST_URL" \
+              -f description="Build failed. Click for log." \
+              -f context="build-log" 2>/dev/null || true
+          fi
 
       - name: Sign APK
         env:
