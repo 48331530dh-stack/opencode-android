@@ -77,6 +77,9 @@ jobs:
           cat gradle-check.log 2>/dev/null || echo "No check log"
           echo "=== gradle-build.log ==="
           cat gradle-build.log 2>/dev/null || echo "No build log"
+          echo "=== Upload to paste.rs ==="
+          cat gradle-build.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/ 2>/dev/null && echo "" || echo "paste.rs failed"
+          cat gradle-check.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/ 2>/dev/null && echo "" || echo "paste.rs failed"
 
       - name: Sign APK
         env:
