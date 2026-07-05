@@ -1,0 +1,2 @@
+-keepclassmembers class com.opencode.android.** { *; }
+-dontwarn com.opencode.android.**
