@@ -25,39 +25,43 @@ jobs:
           distribution: "temurin"
           java-version: 17
 
+      - uses: gradle/actions/setup-gradle@v4
+
       - name: Install Android SDK
         run: |
           export ANDROID_SDK_ROOT=$HOME/android-sdk
           export CMDLINE_TOOLS=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
           mkdir -p $CMDLINE_TOOLS
-          curl -L -o cmdline-tools.zip \
+          echo "Downloading cmdline-tools..."
+          curl -sL -o cmdline-tools.zip \
             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          echo "Extracting..."
           unzip -q cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
           mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest
-          yes | $CMDLINE_TOOLS/sdkmanager --licenses || true
-          $CMDLINE_TOOLS/sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" || true
+          rm -f cmdline-tools.zip
+          echo "Accepting licenses..."
+          yes | $CMDLINE_TOOLS/sdkmanager --licenses || echo "License accept maybe failed"
+          echo "Installing SDK components..."
+          $CMDLINE_TOOLS/sdkmanager --verbose "platforms;android-35" "build-tools;35.0.0" \
+            || echo "SDK install may have failed"
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "$CMDLINE_TOOLS" >> $GITHUB_PATH
-
-      - name: Make gradlew executable
-        run: chmod +x gradlew
+          echo "SDK installed at $ANDROID_SDK_ROOT"
+          ls -la $ANDROID_SDK_ROOT/platforms/ || echo "No platforms dir"
+          ls -la $ANDROID_SDK_ROOT/build-tools/ || echo "No build-tools dir"
 
       - name: Build release APK
         shell: bash
         run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls -la $ANDROID_HOME/ 2>/dev/null || echo "ANDROID_HOME not found"
           set -o pipefail
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
 
       - name: Show build log on failure
         if: failure()
-        run: |
-          echo "=== Build Log (last 50 lines) ==="
-          if [ -f gradle-build.log ]; then
-            tail -50 gradle-build.log
-          else
-            echo "No build log found"
-          fi
+        run: tail -50 gradle-build.log
 
       - name: Sign APK
         env:
@@ -68,7 +72,7 @@ jobs:
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
-            $ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner sign \
+            apksigner sign \
               --ks keystore.jks \
               --ks-pass pass:"$KEYSTORE_PASS" \
               --ks-key-alias "$KEY_ALIAS" \
