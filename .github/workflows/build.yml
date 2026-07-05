@@ -30,59 +30,36 @@ jobs:
       - name: Install Android SDK
         run: |
           SDK=$HOME/android-sdk
-          CMDLINE_TOOLS_ZIP=$HOME/cmdline-tools.zip
-          echo "Checking for pre-installed SDK..."
-          ls -la /usr/local/lib/android/sdk 2>/dev/null && echo "Found!" || echo "Not found"
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          echo "Installing Android SDK at $SDK..."
           mkdir -p $SDK
-          curl -fSL -o $CMDLINE_TOOLS_ZIP \
+          curl -fSL -o $HOME/cmdline-tools.zip \
             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q $CMDLINE_TOOLS_ZIP -d $SDK/cmdline-tools
+          unzip -q $HOME/cmdline-tools.zip -d $SDK/cmdline-tools
           mv $SDK/cmdline-tools/cmdline-tools $SDK/cmdline-tools/latest
-          rm -f $CMDLINE_TOOLS_ZIP
-          yes | $SDK/cmdline-tools/latest/bin/sdkmanager --licenses 2>&1 | tail -5
-          $SDK/cmdline-tools/latest/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0" 2>&1 | tail -20
+          rm -f $HOME/cmdline-tools.zip
+          yes | $SDK/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          $SDK/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" > /dev/null 2>&1 || true
           echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=$SDK" >> $GITHUB_ENV
-          echo "$SDK/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "SDK installed. Platforms:"
-          ls -la $SDK/platforms/
 
-      - name: Check Java and gradlew
+      - name: Check and build
         shell: bash
         run: |
+          echo "=== ENV ==="
           echo "JAVA_HOME=$JAVA_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
           java -version 2>&1
-          ls -la gradle/wrapper/
+          echo "=== Gradle version ==="
           chmod +x gradlew
-          ./gradlew --version --no-daemon 2>&1 | tee gradle-check.log || echo "GRADLE_CHECK_FAILED"
-
-      - name: Build release APK
-        shell: bash
-        if: success()
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls -la $ANDROID_HOME/platforms/
-          chmod +x gradlew
+          ./gradlew --version --no-daemon 2>&1 | tail -10
+          echo "=== SDK platforms ==="
+          ls -la $ANDROID_HOME/platforms/ 2>/dev/null || echo "No platforms dir"
+          echo "=== Build ==="
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
 
-      - name: Publish error via GitHub API
+      - name: Upload log to paste.rs
         if: failure()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          CHECK_LOG=$(cat gradle-check.log 2>/dev/null || echo "No check log")
-          BUILD_LOG=$(cat gradle-build.log 2>/dev/null || echo "No build log")
-          echo "CHECK_LOG=$CHECK_LOG"
-          echo "BUILD_LOG=$BUILD_LOG"
-          echo "Posting to commit status..."
-          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments \
-            -f body="Build failed. Check log: $(echo "$CHECK_LOG" | head -5) Build log: $(echo "$BUILD_LOG" | head -5)" 2>/dev/null || echo "Comment post failed"
+          echo "PASTE URL: $(cat gradle-build.log 2>/dev/null | curl -s -F 'f:1=<-' https://paste.rs/)"
 
       - name: Sign APK
         env:
