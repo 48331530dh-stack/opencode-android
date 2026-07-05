@@ -66,6 +66,7 @@ jobs:
       - name: Build release APK
         shell: bash
         run: |
+          chmod +x gradlew
           set -o pipefail
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
 
