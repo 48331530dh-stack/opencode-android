@@ -46,17 +46,31 @@ jobs:
           ls -la $SDK/build-tools/
 
       - name: Build
+        id: build
         shell: bash
         run: |
-          set -x
           echo "JAVA_HOME=$JAVA_HOME"
           java -version 2>&1
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls -la "$ANDROID_HOME/platforms/" 2>&1 || echo "NO PLATFORMS"
-          ls -la "$ANDROID_HOME/build-tools/" 2>&1 || echo "NO BUILD TOOLS"
+          ls -la "$ANDROID_HOME/platforms/" 2>&1
+          ls -la "$ANDROID_HOME/build-tools/" 2>&1
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const log = fs.readFileSync('gradle-build.log', 'utf8').slice(0, 30000);
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Build failed #' + context.runNumber,
+              body: '## Build Error\n```\n' + log + '\n```\n[View run](' + process.env.GITHUB_SERVER_URL + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId + ')'
+            });
 
       - name: Upload APK
         if: success()
