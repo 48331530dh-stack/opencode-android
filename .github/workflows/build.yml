@@ -70,28 +70,19 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
 
-      - name: Publish error to GitHub Check Run
+      - name: Publish error via GitHub API
         if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const buildLog = fs.readFileSync('gradle-build.log', 'utf8').slice(0, 64000);
-            const checkLog = fs.readFileSync('gradle-check.log', 'utf8').slice(0, 64000);
-            const summary = `## Build Log\n\`\`\`\n${buildLog}\n\`\`\`\n## Check Log\n\`\`\`\n${checkLog}\n\`\`\``;
-            await github.rest.checks.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'build-error-detail',
-              head_sha: context.sha,
-              status: 'completed',
-              conclusion: 'failure',
-              output: {
-                title: 'Build Error',
-                summary: summary.slice(0, 65535),
-                text: summary.slice(0, 65535)
-              }
-            });
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CHECK_LOG=$(cat gradle-check.log 2>/dev/null || echo "No check log")
+          BUILD_LOG=$(cat gradle-build.log 2>/dev/null || echo "No build log")
+          echo "CHECK_LOG=$CHECK_LOG"
+          echo "BUILD_LOG=$BUILD_LOG"
+          echo "Posting to commit status..."
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments \
+            -f body="Build failed. Check log: $(echo "$CHECK_LOG" | head -5) Build log: $(echo "$BUILD_LOG" | head -5)" 2>/dev/null || echo "Comment post failed"
 
       - name: Sign APK
         env:
