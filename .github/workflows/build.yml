@@ -44,19 +44,20 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build release APK
+        shell: bash
         run: |
-          set +e
+          set -o pipefail
           ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle-build.log
-          exit_code=${PIPESTATUS[0]}
-          echo "Gradle exit code: $exit_code"
-          exit $exit_code
 
-      - name: Upload build log (even on failure)
-        if: failure() || success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-log
-          path: gradle-build.log
+      - name: Show build log on failure
+        if: failure()
+        run: |
+          echo "=== Build Log (last 50 lines) ==="
+          if [ -f gradle-build.log ]; then
+            tail -50 gradle-build.log
+          else
+            echo "No build log found"
+          fi
 
       - name: Sign APK
         env:
